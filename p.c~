@@ -1,4 +1,4 @@
-//esto es solo un ejemplo
+
 #include <ftw.h>
 #include <stdio.h>
 #include <stdlib.h>
