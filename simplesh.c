@@ -1,10 +1,10 @@
-// Shell `simplesh`
+#define _XOPEN_SOURCE 500
+#include <ftw.h>
 #include <unistd.h>
 #include <string.h>
 #include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <ftw.h>
 #include <stdint.h>
 
 #include <sys/types.h>
@@ -351,29 +351,112 @@ run_tee(char** argv)
 
 void
 run_du(char** argv)
-{
+{	
 	int argc=0;
 	int c;
-	int flagh=0;
-	int flagb=0;
-	int flagt=0;
-	int flagv=0;
+	int flag_h=0;
+	int flag_b=0;
+	int flag_t=0;
+	int flag_v=0;
 	int flags=0;
 	int tam=0;
+	int tamTotal=0;
 
-//Función para nftw
-	static int
+	int 
 	display_info(const char *fpath, const struct stat *sb, int tflag,struct FTW *ftwbuf)
 	{
-		printf("%-3s %2d %7jd   %-40s %d %s\n",
-		    (tflag == FTW_D) ?   "d"   : (tflag == FTW_DNR) ? "dnr" :
-		    (tflag == FTW_DP) ?  "dp"  : (tflag == FTW_F) ?   "f" :
-		    (tflag == FTW_NS) ?  "ns"  : (tflag == FTW_SL) ?  "sl" :
-		    (tflag == FTW_SLN) ? "sln" : "???",
-		    ftwbuf->level, (intmax_t) sb->st_size,
-		    fpath, ftwbuf->base, fpath + ftwbuf->base);
-		return 0;           /* To tell nftw() to continue */
-	}	
+		if(tflag==FTW_D)
+		{
+			if (flag_v)
+			{
+				for(int n=0; n< ftwbuf->level; n++)
+				printf("    ");
+				printf("%s \n",fpath);
+			}
+		}
+		else if (tflag==FTW_F)
+		{
+			if (flag_b)
+			{
+				if (flag_t)
+				{
+					if(tam>0)
+						if((sb->st_blocks)*512>tam)
+						{
+							tamTotal+=(sb->st_blocks)*512;
+							if (flag_v)
+							{
+								for(int n=0; n< ftwbuf->level; n++)
+									printf("    ");
+								printf("%s: %jd\n ",fpath,(sb->st_blocks*512));
+							}
+						}
+					if(tam<0)
+						if((sb->st_blocks)*512<tam*(-1))
+						{
+							tamTotal+=(sb->st_blocks)*512;
+							if (flag_v)
+							{
+								for(int n=0; n< ftwbuf->level; n++)
+									printf("    ");
+								printf("%s: %jd\n ",fpath,(sb->st_blocks*512));
+							}
+						}
+				}
+				else 
+				{
+					tamTotal+=(sb->st_blocks)*512;
+					if (flag_v)
+					{
+						for(int n=0; n< ftwbuf->level; n++)
+							printf("    ");
+						printf("%s: %jd\n ",fpath,(sb->st_blocks*512));
+					}
+				}
+				
+			}
+			else
+			{
+				if (flag_t)
+				{
+					if(tam>0)
+						if(sb->st_size>tam)
+						{
+							tamTotal+=sb->st_size;
+							if (flag_v)
+							{
+								for(int n=0; n< ftwbuf->level; n++)
+									printf("    ");
+								printf("%s: %jd\n ",fpath,sb->st_size);
+							}
+						}
+					if(tam<0)
+						if(sb->st_size<tam*(-1))
+						{
+							tamTotal+=sb->st_size;
+							if (flag_v)
+							{
+								for(int n=0; n< ftwbuf->level; n++)
+									printf("    ");
+								printf("%s: %jd\n ",fpath,sb->st_size);
+							}
+						}
+				}
+				else 
+				{
+					tamTotal+=sb->st_size;
+					if (flag_v)
+					{
+						for(int n=0; n< ftwbuf->level; n++)
+							printf("    ");
+						printf("%s: %jd\n ",fpath,sb->st_size);
+					}
+				}
+			}
+			
+		}
+		return 0;           
+	}
 
 	while (argc<MAXARGS && argv[argc]!=NULL)
 		argc++;
@@ -386,62 +469,68 @@ run_du(char** argv)
 		switch(c)
 		{
 			case 'h':
-				flagh=1;
+				flag_h=1;
 				break;
 			case 'b':
-				flagb=1;
+				flag_b=1;
 				break;
 			case 't':
-				tam=atol(argv[optarg]);
+				tam=atol(argv[2]);
 				if (tam==0)
 				{
-					printf("Uso erróneo de la opción -t. Uso esperado [-t SIZE]");
+					printf("Uso erróneo de la opción -t. Uso esperado [-t SIZE]\n");
 				}
 				else 
-					flagt=1;
+					flag_t=1;
 				break;
 			case 'v':
-				flagv=1;
+				flag_v=1;
 				break;
 			default:
 				printf ("?? getopt returned character code 0%o ??\n", c);
 		}
 	}
-	if (flagh)
-		printf("Uso : du [-h] [- b] [ -t SIZE ] [-v ] [ FICHERO | DIRECTORIO ]...\nPara cada fichero , imprime su tamaño.\nPara cada directorio , imprime la suma de los tama ñ os de todos los ficheros de todos sus subdirectorios .\nOpciones :\n-b Imprime el tama ño ocupado en disco por todos los bloques del fichero .\n-t SIZE Excluye todos los ficheros más peque ñ os que SIZE bytes , si es positivo , o m ás grandes que SIZE bytes , si es negativo , cuando se procesa un directorio .\n-v Imprime el tama ño de todos y cada uno de los ficheros cuando se procesa un directorio .\n-h help\nNota : Todos los tama ñ os est án expresados en bytes .\n");
-	else
+	if (flag_h)
+		printf("Uso : du [-h] [- b] [ -t SIZE ] [-v ] [ FICHERO | DIRECTORIO ]...\nPara cada fichero , imprime su tamaño.\nPara cada directorio , imprime la suma de los tamaños de todos los ficheros de todos sus subdirectorios .\nOpciones :\n-b Imprime el tama ño ocupado en disco por todos los bloques del fichero .\n-t SIZE Excluye todos los ficheros más pequeños que SIZE bytes , si es positivo , o más grandes que SIZE bytes , si es negativo , cuando se procesa un directorio .\n-v Imprime el tamaño de todos y cada uno de los ficheros cuando se procesa un directorio .\n-h help\nNota : Todos los tamaños están expresados en bytes .\n");
+	else 
 	{
 		int indiceIni=optind;
 		int i=indiceIni;
+		int aux=0;
 		struct stat sb;
 		while(i<argc)
 		{
-			if (stat(argv[i], &sb) == -1) {
+			if (stat(argv[i], &sb) == -1) 
+			{
                perror("stat");
                exit(EXIT_FAILURE);
         	}
-         	switch (sb.st_mode & S_IFMT)
+         	if (S_ISREG(sb.st_mode))
+				if (flag_b)
+					printf("(F) %s: %7jd\n",argv[i],(sb.st_blocks*512));
+				else
+					printf("(F) %s: %7jd\n",argv[i],sb.st_size);
+			else if (S_ISDIR(sb.st_mode))
 			{
-		       case S_IFDIR:  
-
-				   	if (argc > 2 && strchr(argv[2], 'd') != NULL)
-						flags |= FTW_DEPTH;
-					if (argc > 2 && strchr(argv[2], 'p') != NULL)
-						flags |= FTW_PHYS;
-
-				   	if (nftw((argc < 2) ? "." : argv[1], display_info, 20, flags)== -1) {
-						perror("nftw");
-						exit(EXIT_FAILURE);
-					}
-					exit(EXIT_SUCCESS);
-	               	break;
-		       case S_IFREG:  
-					
-		            break;
-		       default:       printf("unknown?\n");
-	                break;
-		    }
+		    	if (nftw(argv[i], display_info, 20, flags)== -1) 
+				{
+					perror("nftw");
+					exit(EXIT_FAILURE);
+				}
+				printf("(D) %s: %d\n", argv[i], tamTotal);		
+				tamTotal=0;			
+			}
 			i++;			
+		}
+		if (indiceIni==argc)
+		{
+			if (nftw(".", display_info, 20, flags)== -1) 
+				{
+					perror("nftw");
+					exit(EXIT_FAILURE);
+				}
+				printf("(D) %s: %d\n", ".", tamTotal);		
+				tamTotal=0;			
 		}
 	}
 }
@@ -703,8 +792,9 @@ main(void)
         if(fork1() == 0)
             run_cmd(cmd);
 		wait(NULL);
-		if (recorridoProfundidad(cmd, 1))
-			run_exit();
+		if (cmd!=NULL)
+			if (recorridoProfundidad(cmd, 1))
+				run_exit();
         free ((void*)buf);
     }
     return 0;
