@@ -14,6 +14,7 @@
 #include <pwd.h>
 #include <libgen.h>
 #include <getopt.h>
+#include <signal.h>
 
 // Libreadline
 #include <readline/readline.h>
@@ -101,6 +102,19 @@ int fork1(void);  // Fork but panics on failure.
 void panic(char*);
 struct cmd *parse_cmd(char*);
  
+//Manejadores de señales
+static void 
+sigc_handler(int sig)
+{
+	fprintf(stderr, "Ctrl C");
+}
+
+static void
+sigu_handler(int sig)
+{
+}
+
+
 //Función para el comando interno pwd.
 void 
 run_pwd()
@@ -784,6 +798,8 @@ int
 main(void)
 {
     char* buf;
+	struct sigaction siga;
+	
     // Bucle de lectura y ejecución de órdenes.
     while (NULL != (buf = getcmd()))
     {
