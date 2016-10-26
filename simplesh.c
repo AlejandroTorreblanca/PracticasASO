@@ -32,7 +32,7 @@
 #define NUM_INTERNOS 5
 #define TAM_BUFF 4096
 #define PROFUN 20
-const char *COMANDOS_INTERNOS[NUM_INTERNOS]={"pwd","exit","cd","tee", "du"};
+static const char *COMANDOS_INTERNOS[NUM_INTERNOS]={"pwd","exit","cd","tee", "du"};
 
 
 // Estructuras
@@ -381,7 +381,7 @@ run_du(char** argv)
 				if (flag_t)
 				{
 					if(tam>0)
-						if((sb->st_blocks)*512>tam)
+						if((sb->st_blocks)*512<=tam)
 						{
 							tamTotal+=(sb->st_blocks)*512;
 							if (flag_v)
@@ -392,7 +392,7 @@ run_du(char** argv)
 							}
 						}
 					if(tam<0)
-						if((sb->st_blocks)*512<tam*(-1))
+						if((sb->st_blocks)*512>=tam*(-1))
 						{
 							tamTotal+=(sb->st_blocks)*512;
 							if (flag_v)
@@ -420,7 +420,7 @@ run_du(char** argv)
 				if (flag_t)
 				{
 					if(tam>0)
-						if(sb->st_size>tam)
+						if(sb->st_size<=tam)
 						{
 							tamTotal+=sb->st_size;
 							if (flag_v)
@@ -431,7 +431,7 @@ run_du(char** argv)
 							}
 						}
 					if(tam<0)
-						if(sb->st_size<tam*(-1))
+						if(sb->st_size>=tam*(-1))
 						{
 							tamTotal+=sb->st_size;
 							if (flag_v)
@@ -475,7 +475,7 @@ run_du(char** argv)
 				flag_b=1;
 				break;
 			case 't':
-				tam=atol(argv[2]);
+				tam=atol(optarg);
 				if (tam==0)
 				{
 					printf("Uso erróneo de la opción -t. Uso esperado [-t SIZE]\n");
@@ -491,7 +491,7 @@ run_du(char** argv)
 		}
 	}
 	if (flag_h)
-		printf("Uso : du [-h] [- b] [ -t SIZE ] [-v ] [ FICHERO | DIRECTORIO ]...\nPara cada fichero , imprime su tamaño.\nPara cada directorio , imprime la suma de los tamaños de todos los ficheros de todos sus subdirectorios .\nOpciones :\n-b Imprime el tama ño ocupado en disco por todos los bloques del fichero .\n-t SIZE Excluye todos los ficheros más pequeños que SIZE bytes , si es positivo , o más grandes que SIZE bytes , si es negativo , cuando se procesa un directorio .\n-v Imprime el tamaño de todos y cada uno de los ficheros cuando se procesa un directorio .\n-h help\nNota : Todos los tamaños están expresados en bytes .\n");
+		printf("Uso : du [-h] [- b] [ -t SIZE ] [-v ] [ FICHERO | DIRECTORIO ]...\nPara cada fichero , imprime su tamaño.\nPara cada directorio , imprime la suma de los tamaños de todos los ficheros de todos sus subdirectorios .\nOpciones :\n-b Imprime el tamaño ocupado en disco por todos los bloques del fichero .\n-t SIZE Excluye todos los ficheros más pequeños que SIZE bytes , si es negativo , o más grandes que SIZE bytes , si es positivo , cuando se procesa un directorio .\n-v Imprime el tamaño de todos y cada uno de los ficheros cuando se procesa un directorio .\n-h help\nNota : Todos los tamaños están expresados en bytes .\n");
 	else 
 	{
 		int indiceIni=optind;
