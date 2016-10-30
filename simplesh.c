@@ -15,6 +15,7 @@
 #include <libgen.h>
 #include <getopt.h>
 #include <signal.h>
+#include <errno.h>
 
 // Libreadline
 #include <readline/readline.h>
@@ -33,8 +34,10 @@
 #define NUM_INTERNOS 5
 #define TAM_BUFF 4096
 #define PROFUN 20
+#define timeoutConst 5
 static const char *COMANDOS_INTERNOS[NUM_INTERNOS]={"pwd","exit","cd","tee", "du"};
-
+static int contador=1;
+static struct timespec timeout;
 
 // Estructuras
 // -----
@@ -106,12 +109,33 @@ struct cmd *parse_cmd(char*);
 static void 
 sigc_handler(int sig)
 {
-	fprintf(stderr, "Ctrl C");
+fprintf(stderr,"sigc %d\n",sig);
+	contador++;
+	sigset_t s;
+	sigemptyset(&s);
+	sigaddset(&s,SIGCHLD);
+	if (sigprocmask(SIG_BLOCK,&s,NULL)==-1)
+	{
+		perror("sigprocmask");
+		exit(EXIT_FAILURE);
+	}
+	return;
 }
 
 static void
 sigu_handler(int sig)
 {
+fprintf(stderr,"sigu %d\n", sig);
+	if (sig==SIGUSR1)
+	{
+		timeout.tv_sec+=timeoutConst;
+	}
+	else if (sig==SIGUSR2)
+	{
+		if(timeout.tv_sec>timeoutConst)
+			timeout.tv_sec-=timeoutConst;
+	}
+	return;
 }
 
 
@@ -600,10 +624,8 @@ int recorridoProfundidad(struct cmd* cmd, int res)
     struct listcmd *lcmd;
     struct pipecmd *pcmd;
     struct redircmd *rcmd;
-
     if(cmd == 0)
         exit(0);
-
     switch(cmd->type)
     {
     default:
@@ -611,6 +633,8 @@ int recorridoProfundidad(struct cmd* cmd, int res)
 
     case EXEC:
         ecmd = (struct execcmd*)cmd;  
+		if (ecmd->argv[0]==0)
+			return 0;
 		if (strcmp(ecmd->argv[0],COMANDOS_INTERNOS[1])==0)
 			return 1;
 		else if (strcmp(ecmd->argv[0],COMANDOS_INTERNOS[2])==0)
@@ -799,18 +823,79 @@ main(void)
 {
     char* buf;
 	struct sigaction siga;
-	
+	sigset_t blocked_signals;
+	sigset_t schld;
+	timeout.tv_sec=timeoutConst;
+	timeout.tv_nsec=0;
+	sigemptyset(&schld);
+	sigaddset(&schld,SIGCHLD);
+	sigemptyset(&blocked_signals);
+	sigaddset(&blocked_signals,SIGINT);
+	sigaddset(&blocked_signals,SIGCHLD);
+	if (sigprocmask(SIG_BLOCK,&blocked_signals,NULL)==-1)
+	{
+		perror("sigprocmask");
+		exit(EXIT_FAILURE);
+	}
+	siga.sa_handler=sigc_handler;
+	sigemptyset(&siga.sa_mask);
+	if(sigaction(SIGCHLD,&siga,NULL)==-1)
+	{
+		perror("sigaction(sigchld)");
+		exit(EXIT_FAILURE);
+	}
+	struct sigaction sa;
+	sa.sa_handler=sigu_handler;
+	sigemptyset(&sa.sa_mask);
+	//sigaddset(&sa.sa_mask,SIGCHLD);
+	if(sigaction(SIGUSR1,&sa,NULL)==-1)
+	{
+		perror("sigaction(sigusr1)");
+		exit(EXIT_FAILURE);
+	}
+	if(sigaction(SIGUSR2,&sa,NULL)==-1)
+	{
+		perror("sigaction(sigusr2)");
+		exit(EXIT_FAILURE);
+	}
     // Bucle de lectura y ejecución de órdenes.
     while (NULL != (buf = getcmd()))
     {
 		struct cmd* cmd=parse_cmd(buf);
         // Crear siempre un hijo para ejecutar el comando leído
-        if(fork1() == 0)
+		sigset_t pending;
+		sigemptyset(&pending);
+		sigpending(&pending);
+		if (sigismember(&pending,SIGCHLD))
+			fprintf(stderr,"SASADASDASA\n");
+		int pid=fork1();
+        if(pid == 0)
             run_cmd(cmd);
-		wait(NULL);
-		if (cmd!=NULL)
-			if (recorridoProfundidad(cmd, 1))
-				run_exit();
+		fprintf(stderr,"timeout %ld\n",timeout.tv_sec);
+int codigo=sigtimedwait(&schld,NULL ,&timeout);
+		fprintf(stderr,"codigo %d\n",codigo);
+		if (codigo==-1)
+		{
+			if (errno==EAGAIN)
+			{
+				kill(pid, SIGKILL);
+				fprintf(stderr, "simplesh: [%d] Matado hijo con PID %d\n", contador, pid);
+				if (sigprocmask(SIG_UNBLOCK,&schld,NULL)==-1)
+				{
+					perror("sigprocmask");
+					exit(EXIT_FAILURE);
+				}
+				
+			}
+			else if (errno==EINVAL)
+			{
+				perror("sigtimedwait");
+				exit(EXIT_FAILURE);
+			}
+		}
+		fprintf(stderr,"waitpid %d\n",waitpid(pid,NULL,0));
+		if (recorridoProfundidad(cmd, 1))
+			run_exit();
         free ((void*)buf);
     }
     return 0;
