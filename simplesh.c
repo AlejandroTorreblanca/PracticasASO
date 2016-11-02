@@ -473,7 +473,7 @@ run_du(char** argv)
 							{
 								for(int n=0; n< ftwbuf->level; n++)
 									printf("    ");
-								printf("%s: %jd\n ",fpath,sb->st_size);
+								printf("%s: %jd\n",fpath,sb->st_size);
 							}
 						}
 				}
