@@ -1,0 +1,14 @@
+total 844
+drwxrwxr-x  5 alumno alumno   4096 nov  2 17:27 .
+drwxr-xr-x 27 alumno alumno   4096 nov  2 17:26 ..
+-rw-------  1 alumno alumno 516096 nov  2 16:00 core
+drwxrwxr-x  4 alumno alumno   4096 nov  2 15:35 dir
+drwxrwxr-x  2 alumno alumno   4096 nov  2 15:35 docs
+-rw-------  1 alumno alumno     59 nov  2 17:26 fich
+-rw-------  1 alumno alumno      0 nov  2 17:27 fiche
+-rw-------  1 alumno alumno      0 nov  2 17:27 fichero
+drwxrwxr-x  8 alumno alumno   4096 nov  2 15:35 .git
+-rw-rw-r--  1 alumno alumno    234 nov  2 15:35 Makefile
+-rwxrwxr-x  1 alumno alumno 101992 nov  2 17:24 simplesh
+-rw-rw-r--  1 alumno alumno  29188 nov  2 17:24 simplesh.c
+-rw-rw-r--  1 alumno alumno 183064 nov  2 17:24 simplesh.o

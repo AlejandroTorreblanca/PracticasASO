@@ -109,23 +109,13 @@ struct cmd *parse_cmd(char*);
 static void 
 sigc_handler(int sig)
 {
-fprintf(stderr,"sigc %d\n",sig);
 	contador++;
-	sigset_t s;
-	sigemptyset(&s);
-	sigaddset(&s,SIGCHLD);
-	if (sigprocmask(SIG_BLOCK,&s,NULL)==-1)
-	{
-		perror("sigprocmask");
-		exit(EXIT_FAILURE);
-	}
 	return;
 }
 
 static void
 sigu_handler(int sig)
 {
-fprintf(stderr,"sigu %d\n", sig);
 	if (sig==SIGUSR1)
 	{
 		timeout.tv_sec+=timeoutConst;
@@ -173,17 +163,21 @@ run_cd(char** argv)
 	char* ruta=argv[1];
 	if (ruta==NULL)
 	{
-    	if (chdir(home)==-1)
-			{
-				perror("chdir");
-			}
+		if (home==NULL)
+		{
+			fprintf(stderr,"No se ha encontrado el path de HOME");
+		}
+    	else if (chdir(home)==-1)
+		{
+			perror("chdir");
+		}
 	}
 	else
 	{
 		if (chdir(ruta)==-1)
-			{
-				perror("chdir");
-			}
+		{
+			perror("chdir");
+		}
 	}
 }
 
@@ -192,17 +186,17 @@ run_tee(char** argv)
 {
 	int argc=0;
 	int flag=O_TRUNC;
-	int c;
+	int variables;
 	int ayuda=0;
 	while (argc<MAXARGS && argv[argc]!=NULL)
 		argc++;
 	while(1)
 	{
 		int option_index=0;
-		c=getopt(argc, argv, "ha");
-		if(c==-1) 
+		variables=getopt(argc, argv, "ha");
+		if(variables==-1) 
 			break;
-		switch(c)
+		switch(variables)
 		{
 			case 'h':
 				ayuda=1;
@@ -211,7 +205,7 @@ run_tee(char** argv)
 				flag=O_APPEND;
 				break;
 			default:
-				printf ("?? getopt returned character code 0%o ??\n", c);
+				printf ("?? getopt returned character code 0%o ??\n", variables);
 		}
 	}
 	if (ayuda)
@@ -278,13 +272,13 @@ run_tee(char** argv)
 			}
 			while(bytesTotales<bytesLeidos)
 			{
+				bytesTotales+=bytesEscritos;
+				bytesEscritos=write(STDOUT_FILENO, buff+bytesTotales,bytesLeidos-bytesTotales);
 				if (bytesEscritos==-1)
 				{
 					perror("write");
 					exit(EXIT_FAILURE);
 				}
-				bytesTotales+=bytesEscritos;
-				bytesEscritos=write(STDOUT_FILENO, buff+bytesTotales,bytesLeidos-bytesTotales);
 			}
 //Leer la siguiente ristra de la entrada estándar
 			bytesLeidos=read(STDIN_FILENO, buff, TAM_BUFF);
@@ -322,7 +316,6 @@ run_tee(char** argv)
 			}
 			i++;
 		}
-							///OPCIONAL:
 
 		char* home=getenv("HOME");	
 		strcat(home,"/.tee.log");
@@ -353,23 +346,14 @@ run_tee(char** argv)
 		}
 	   	info = localtime( &rawtime );
 	
-		strftime(buffer,80,"%Y-%m-%d  %X:", info);
+		char tiempo[256];
+		strftime(tiempo,80,"%Y-%m-%d  %X:", info);
 	  	
+		char * prompt=malloc(TAM_PATH*sizeof(char));
+
 		int pid =(int)getpid();
 		int euid=(int)getuid();
-
-		strcat(buffer, "PID ");
-   		sprintf(str,"%d", pid);
-		strcat(buffer,str);
-		strcat(buffer, ":EUID ");
-		sprintf(str,"%d", euid);
-		strcat(buffer,str);
-		strcat(buffer,":");
-		sprintf(str,"%d", bytesTotales);
-		strcat(buffer,str);
-		strcat(buffer,":");
-		sprintf(str,"%d \n", ficherosEscritos);
-		strcat(buffer,str);
+		int cx=snprintf(buffer, 256, "%sPID %d:EUID %d:%d byte(s):%d file(s)\n", tiempo,pid, euid,bytesTotales,ficherosEscritos);
 		bytesEscritos=write(fd[0], buffer,strlen(buffer));
 		if (bytesEscritos==-1)
 		{
@@ -822,7 +806,6 @@ int
 main(void)
 {
     char* buf;
-	struct sigaction siga;
 	sigset_t blocked_signals;
 	sigset_t schld;
 	timeout.tv_sec=timeoutConst;
@@ -837,6 +820,7 @@ main(void)
 		perror("sigprocmask");
 		exit(EXIT_FAILURE);
 	}
+	struct sigaction siga;
 	siga.sa_handler=sigc_handler;
 	sigemptyset(&siga.sa_mask);
 	if(sigaction(SIGCHLD,&siga,NULL)==-1)
@@ -863,37 +847,44 @@ main(void)
     {
 		struct cmd* cmd=parse_cmd(buf);
         // Crear siempre un hijo para ejecutar el comando leído
-		sigset_t pending;
-		sigemptyset(&pending);
-		sigpending(&pending);
-		if (sigismember(&pending,SIGCHLD))
-			fprintf(stderr,"SASADASDASA\n");
 		int pid=fork1();
         if(pid == 0)
             run_cmd(cmd);
-		fprintf(stderr,"timeout %ld\n",timeout.tv_sec);
-int codigo=sigtimedwait(&schld,NULL ,&timeout);
-		fprintf(stderr,"codigo %d\n",codigo);
-		if (codigo==-1)
+		int stwIncorrecto=1;
+		while (stwIncorrecto)
 		{
-			if (errno==EAGAIN)
+			if (sigtimedwait(&schld,NULL ,&timeout)==-1)
 			{
-				kill(pid, SIGKILL);
-				fprintf(stderr, "simplesh: [%d] Matado hijo con PID %d\n", contador, pid);
-				if (sigprocmask(SIG_UNBLOCK,&schld,NULL)==-1)
+				if (errno==EAGAIN)
 				{
-					perror("sigprocmask");
+					fprintf(stderr, "simplesh: [%d] Matado hijo con PID %d\n", contador, pid);
+					kill(pid, SIGKILL);
+					if (sigprocmask(SIG_UNBLOCK,&schld,NULL)==-1)
+					{
+						perror("sigprocmask");
+						exit(EXIT_FAILURE);
+					}
+					stwIncorrecto=0;			
+				}
+				else if (errno==EINVAL)
+				{
+					perror("sigtimedwait");
 					exit(EXIT_FAILURE);
 				}
-				
+				else
+				{
+					stwIncorrecto=1;
+				}
 			}
-			else if (errno==EINVAL)
-			{
-				perror("sigtimedwait");
-				exit(EXIT_FAILURE);
-			}
+			else
+				stwIncorrecto=0;
 		}
-		fprintf(stderr,"waitpid %d\n",waitpid(pid,NULL,0));
+		waitpid(pid,NULL,0);
+		if (sigprocmask(SIG_BLOCK,&schld,NULL)==-1)
+		{
+			perror("sigprocmask");
+			exit(EXIT_FAILURE);
+		}
 		if (recorridoProfundidad(cmd, 1))
 			run_exit();
         free ((void*)buf);
